@@ -7,29 +7,75 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using System.Text;
+using System.Security.Cryptography;
+using RestSharp;
+using System.Linq;
 
-namespace FunctionApp1
+namespace ClosedPL
 {
     public static class ClosedPLFunction
     {
         [FunctionName("ClosedPL")]
-        public static async Task<IActionResult> Run(
+        public static async Task<JsonResult> Run(
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation("C# HTTP trigger function processed a request.");
+               log.LogInformation("C# HTTP trigger function processed a request.");
 
-            string name = req.Query["name"];
+            var client = new RestClient("https://api-testnet.bybit.com");
+            client.UseJson();
 
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-            dynamic data = JsonConvert.DeserializeObject(requestBody);
-            name = name ?? data?.name;
+            var restRequest = new RestRequest("/private/linear/trade/closed-pnl/list");
 
-            string responseMessage = string.IsNullOrEmpty(name)
-                ? "This HTTP triggered function executed successfully. Pass a name in the query string or in the request body for a personalized response."
-                : $"Hello, {name}. This HTTP triggered function executed successfully.";
+            string symbol = req.Query["symbol"];
+            symbol ??= "BTCUSDT";
+            restRequest.AddQueryParameter("symbol", symbol);
+            restRequest.AddQueryParameter("api_key", Environment.GetEnvironmentVariable("BYBIT_API_KEY"));            
+            var timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();            
+            restRequest.AddQueryParameter("timestamp", timestamp);
+            
+            restRequest.Parameters.Sort((x, y) => x.Name.CompareTo(y.Name));
+            var querystring = "";
+            foreach (var p in restRequest.Parameters)
+            {
+                querystring += p.Name + "=" + p.Value + "&";
+            }
+            if (querystring.Length > 1)
+                querystring = querystring.Remove(querystring.Length - 1, 1);
 
-            return new OkObjectResult(responseMessage);
+            var sign = CreateSignature(Environment.GetEnvironmentVariable("BYBIT_API_SECRET"), querystring);
+
+            restRequest.AddQueryParameter("sign", sign);
+            var resp = client.Get(restRequest);
+            dynamic jsonResponse = JsonConvert.DeserializeObject(resp.Content);
+
+            return new JsonResult(jsonResponse);
+        }
+
+        public static string CreateSignature(string secret, string message)
+        {
+            var signatureBytes = Hmacsha256(Encoding.UTF8.GetBytes(secret), Encoding.UTF8.GetBytes(message));
+
+            return ByteArrayToString(signatureBytes);
+        }
+
+        private static byte[] Hmacsha256(byte[] keyByte, byte[] messageBytes)
+        {
+            using (var hash = new HMACSHA256(keyByte))
+            {
+                return hash.ComputeHash(messageBytes);
+            }
+        }
+        public static string ByteArrayToString(byte[] ba)
+        {
+            var hex = new StringBuilder(ba.Length * 2);
+
+            foreach (var b in ba)
+            {
+                hex.AppendFormat("{0:x2}", b);
+            }
+            return hex.ToString();
         }
     }
 }
