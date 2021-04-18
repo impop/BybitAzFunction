@@ -21,9 +21,9 @@ namespace ClosedPL
             [HttpTrigger(AuthorizationLevel.Function, "get", "post", Route = null)] HttpRequest req,
             ILogger log)
         {
-               log.LogInformation("C# HTTP trigger function processed a request.");
+            log.LogInformation("C# HTTP trigger function processed a request.");
 
-            var client = new RestClient("https://api-testnet.bybit.com");
+            var client = new RestClient(Environment.GetEnvironmentVariable("BYBIT_BASE_ENDPOINT"));
             client.UseJson();
 
             var restRequest = new RestRequest("/private/linear/trade/closed-pnl/list");
@@ -31,7 +31,7 @@ namespace ClosedPL
             string symbol = req.Query["symbol"];
             symbol ??= "BTCUSDT";
             restRequest.AddQueryParameter("symbol", symbol);
-            restRequest.AddQueryParameter("api_key", Environment.GetEnvironmentVariable("BYBIT_API_KEY"));            
+            restRequest.AddQueryParameter("api_key", Environment.GetEnvironmentVariable("BYBIT_API_KEY"));
             var timestamp = DateTimeOffset.Now.ToUnixTimeMilliseconds().ToString();            
             restRequest.AddQueryParameter("timestamp", timestamp);
             
