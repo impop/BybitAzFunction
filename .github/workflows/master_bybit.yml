@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/azure/functions-action
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: bybit build and release
+name: build and release bybit and bybittest
 
 on:
   push:
@@ -32,12 +32,21 @@ jobs:
         dotnet build ./BybitFunctions --configuration Release --output ./output
         popd
 
-    - name: 'Run Azure Functions Action'
+    - name: 'Publish bybit'
       uses: Azure/functions-action@v1
-      id: fa
+      id: bybitrelease
       with:
         app-name: 'bybit'
         slot-name: 'production'
         package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
         publish-profile: ${{ secrets.AzureAppService_PublishProfile_338258674c244e8eb8f817fa479b1a79 }}
+        
+    - name: 'Publish bybittest'
+      uses: Azure/functions-action@v1
+      id: bybittestrelease
+      with:
+        app-name: 'bybittest'
+        slot-name: 'production'
+        package: '${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output'
+        publish-profile: ${{ secrets.BYBITTEST_PUBLISH_PROFILE }}
   
